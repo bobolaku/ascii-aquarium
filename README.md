@@ -4,6 +4,8 @@
 
 鱼形来自 <https://kaomojis.jp/zh/fish-kaomoji>。
 
+> 源码托管在 GitHub：<https://github.com/bobolaku/ascii-aquarium>（MIT 协议，欢迎 Star / Issue）
+
 ---
 
 ## 一、研究成果：那个网站里的小鱼颜文字
@@ -36,6 +38,15 @@
 ---
 
 ## 二、怎么跑起来
+
+### 方式 0：克隆仓库
+
+```bash
+git clone https://github.com/bobolaku/ascii-aquarium.git
+cd ascii-aquarium
+```
+
+仓库里只有源码和成品 exe（共约 120 KB）。`.aquarium-profile`（Edge 运行时缓存，几百 MB）、`aquarium.log`、`aquarium-cmd.js` 都是本地运行时自动生成的，已写进 `.gitignore`，不会出现在仓库里。
 
 ### 方式 A：双击 `aquarium.html`（最快）
 
@@ -129,7 +140,9 @@ AquariumWallpaper.exe   ← 已经编译好了，直接双击也行
 | `make-icon.js` | 生成 `aquarium.ico` 的纯 Node 脚本，无需依赖；改图案后 `node make-icon.js` 重新生成 |
 | `AquariumWallpaper.exe` | 编译好的程序 |
 | `fish-kaomoji.txt` | 从网站提取的 92 条鱼颜文字速查 |
-| `aquarium.log` | 壁纸宿主运行日志，排错用 |
+| `LICENSE` | MIT 开源协议 |
+| `.gitignore` / `.gitattributes` | 排除运行时缓存与日志，并统一换行（`*.bat` 保持 CRLF） |
+| `aquarium.log` | 壁纸宿主运行日志，排错用（已 gitignore） |
 | `aquarium-cmd.js` | 托盘菜单与页面之间的命令通道（程序运行时自动生成） |
 | `.aquarium-profile\` | Edge 专用配置目录（自动生成，约 60 MB 是 Edge 自带的组件/缓存/模型，跟页面无关）。**退出时会自动清掉可再生的缓存**，体积回落到十几 MB；别删其中的 `First Run` 和 `Default\Preferences`，否则会重新跑首次运行向导 |
 
