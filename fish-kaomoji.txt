@@ -1,0 +1,95 @@
+# kaomojis.jp/zh/fish-kaomoji —— 提取到的鱼 / 海洋生物颜文字
+# 格式：序号 <Tab> 颜文字 <Tab> 网站上的英文标签
+# 由 ASCII 水族馆项目整理，用于挑选鱼形。
+1	>°)))彡	Classic Fish
+2	><(((º>	Swimming Fish
+3	<゜)))彡	Little Fish
+4	>°)))<><	Two Fish
+5	ミ(°°)ミ	Round Fish
+6	>(•ω•)<彡	Cute Fish
+7	＞（口）＜彡	Open-mouth Fish
+8	くコ:彡	Squid
+9	( ・ω・)ノ>゜)))彡	Catch &#38; Toss
+10	～～>゜)))彡	Fish in Waves
+11	≧(´▽｀)≦彡	Happy Swimmer
+12	>゜))))彡	Long Fish
+13	くコ:彡（*´∀`）	Squid Buddy
+14	（ΦωΦ）くコ:彡	Cat &#38; Squid
+15	Ꮚ˘ ꈊ ˘ Ꮚ	Otter
+16	~~~ε(´。`)з~~~	Octopus
+17	∿(˶ᵔ ᵕ ᵔ˶)∿	Wavy Cutie
+18	ﾐ(ˊᗜˋ)ﾐ	Finned Smile
+19	∿∿（*´ω`*）∿∿	Floating
+20	ﾐ(∩ω∩)ﾐ	Shy Fin
+21	(=^·ω·^=)ψ🐟	kaomoji
+22	~🐠~🐟~🐡~	kaomoji
+23	>°)))彡	kaomoji
+24	><(((º>	kaomoji
+25	( ˊᵕˋ )🐟～～～	kaomoji
+26	(○゜ε゜○)	kaomoji
+27	🦈( °д°)	kaomoji
+28	<゜)))彡	kaomoji
+29	🐙(·ω·)	kaomoji
+30	(·ω·)ノ🦀	kaomoji
+31	≋≋≋><(((º>	kaomoji
+32	（ΦωΦ）くコ:彡	kaomoji
+33	Ꮚ˘ ꈊ ˘ Ꮚ	kaomoji
+34	(°ο°)ノ🦞	kaomoji
+35	( ・ω・)ノ>゜)))彡	kaomoji
+36	🐟< ブクブク	kaomoji
+37	(°)#))<<	kaomoji
+38	ミ(°°)ミ	kaomoji
+39	(°ω°)ノ🐠	kaomoji
+40	♪(*°○°)ノ🐟	kaomoji
+41	ﾐ(ˊᗜˋ)ﾐ	kaomoji
+42	（´◡`）ノ彡～	kaomoji
+43	>°)))<><	kaomoji
+44	くコ:彡（*´∀`）	kaomoji
+45	＞（口）＜彡	kaomoji
+46	>(•ω•)<彡	kaomoji
+47	くコ:彡ヽ(°Д°)ノ	kaomoji
+48	🐬~(˘▽˘)~	kaomoji
+49	><((((*>	kaomoji
+50	>゜))))彡	kaomoji
+51	∿(˶ᵔ ᵕ ᵔ˶)∿	kaomoji
+52	~~~ε(´。`)з~~~	kaomoji
+53	｡･ﾟ(ﾉД`)ﾟ･｡彡	kaomoji
+54	～～>゜)))彡	kaomoji
+55	＞°))))彡 ＜°))))彡 群れ	kaomoji
+56	~>゜)~~ ~	kaomoji
+57	(˘ε˘)~♪゜	kaomoji
+58	（っ◔◡◔）っ🐳	kaomoji
+59	~＞°))彡 鮭	kaomoji
+60	><((°>	kaomoji
+61	><>	kaomoji
+62	<°)))><	kaomoji
+63	><(((( ˚>	kaomoji
+64	><> ><> ><>	kaomoji
+65	𓆝 𓆟 𓆞 ·｡°‧	kaomoji
+66	⋆｡°✧ 𓆟 ✧°｡⋆	kaomoji
+67	～°𓆝°～ 𓆟 ～°𓆞°～	kaomoji
+68	𓆝 ⋆｡˚ 𓆟 ˚｡⋆ 𓆞	kaomoji
+69	˚₊· ͟͟͞🫧 ˚₊· ͟͟͞🫧	kaomoji
+70	⋆｡°✧ ～～～ ✧°｡⋆	kaomoji
+71	·͙⁺˚*･｡ 𓆉 ｡･*˚⁺͙·	kaomoji
+72	( ˘ω˘ )っ><>	kaomoji
+73	(๑˃ᴗ˂)ﾉ><((°>	kaomoji
+74	( ´ ▽ ` )ﾉ ～°𓆝°～	kaomoji
+75	(っ˘ω˘)っ 𓆟 ｡ﾟ	kaomoji
+76	ζ°)))彡	kaomoji
+77	/（ˊДˋ）＼彡	kaomoji
+78	≧〔°▲°〕≦彡	kaomoji
+79	ﾐ(∩ω∩)ﾐ	kaomoji
+80	≧(´▽｀)≦彡	kaomoji
+81	くコ:三（＞_＜）	kaomoji
+82	(˘ω˘)＞°))) 魚泳ぐ	kaomoji
+83	∿∿（*´ω`*）∿∿	kaomoji
+84	(ᴖ̴̊ᴗᴖ̴̊)ᶻᶻ	kaomoji
+85	(°))<<	kaomoji
+86	彡°)))≧口≦	kaomoji
+87	o)(°▽°)(o	kaomoji
+88	ヽ(≧∀≦)ノ彡	kaomoji
+89	（◡‿◡♡）彡～～	kaomoji
+90	ﾟ+.(・∀・).+ﾟ彡	kaomoji
+91	ｍ（ﾟoﾟ）ｍ	kaomoji
+92	>゜)))彡	kaomoji

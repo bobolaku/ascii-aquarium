@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ASCII Aquarium</title>
+<style>
+  html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#0a1a2f}
+  #tank{display:block;position:fixed;inset:0}
+  #hud{position:fixed;left:16px;top:14px;color:rgba(255,255,255,.40);
+       font:12px/1.75 Consolas,"Courier New",monospace;letter-spacing:.4px;
+       text-shadow:0 1px 4px rgba(0,0,0,.7);pointer-events:none;user-select:none;
+       transition:opacity .9s;z-index:5;white-space:pre}
+  #hud b{color:rgba(255,255,255,.78);font-weight:600}
+  #hud.hidden{opacity:0}
+</style>
+</head>
+<body>
+<canvas id="tank"></canvas>
+<div id="hud"></div>
+<script>
+/* ============================================================
+   ASCII 水族馆 —— 所有可见元素都由「计算机符号 / 字符」构成
+   鱼、水草、气泡、沙砾、贝壳、城堡、水波、浮游微粒……
+   Canvas 只负责：定位、颜色、字号、透明度、镜像、整体缩放。
+   鱼形取自 kaomojis.jp/zh/fish-kaomoji
+   ============================================================ */
+(function () {
+  'use strict';
+
+  /* ---------- 配置（可用 URL 参数覆盖） ---------- */
+  const Q = new URLSearchParams(location.search);
+  const THEMES = ['#0a1a2f', '#061b2b', '#08271f', '#15102a', '#101018',
+                  '#04263c', '#1c1a12', '#000000'];
+  const num = (v, d, lo, hi) => { const n = parseFloat(v); return isNaN(n) ? d : Math.min(hi, Math.max(lo, n)); };
+  const CFG = {
+    bg: '#' + String(Q.get('bg') || THEMES[0].slice(1)).replace(/^#/, ''),
+    fishCount: Math.round(num(Q.get('fish'), 22, 1, 90)),
+    speed: num(Q.get('speed'), 1, 0.2, 3),
+    zoom:  num(Q.get('zoom'), 1, 0.4, 3),     // 整体放大倍率（在自动适配之上再乘）
+    decorCount: Math.round(num(Q.get('decorcount'), 6, 0, 14)),
+    taskbar: Math.round(num(Q.get('tb'), 0, 0, 400)),  // 宿主传来的任务栏占用像素
+    plants:  Q.get('plants')  !== '0',
+    bubbles: Q.get('bubbles') !== '0',
+    decor:   Q.get('decor')   !== '0',
+    motes:   Q.get('motes')   !== '0',
+    surface: Q.get('surface') !== '0',
+    glow:    Q.get('glow')    !== '0',
+    hiero:   Q.get('hiero')   === '1',
+    wallpaper: Q.get('wallpaper') === '1',
+    font: '"Consolas","MS Gothic","Yu Gothic UI","Segoe UI Symbol",monospace'
+  };
+  let themeIndex = Math.max(0, THEMES.indexOf(CFG.bg));
+  document.body.style.background = CFG.bg;
+
+  /* ---------- 鱼种库 ------------------------------------------------
+     art 是固定的鱼身：躯干括号数量永远不变；tails 只换最后一个尾巴字符。
+     dir = art 原本的朝向：+1 头在右， -1 头在左（尾巴 / 水流 彡 在右端）。
+     绘制时用 flip * dir 决定镜像，保证「游动方向」与「鱼头朝向」永远一致 ——
+     以前统一按「原样 = 朝右」处理，头在左的那批（>°)))彡、ζ°)))彡 等）
+     就变成倒着游了。
+     size 越大越慢、越淡 —— 用大小与颜色区分不同的小鱼。
+     ------------------------------------------------------------------ */
+  const TAIL = ['彡', '〰', '～', '彡'];
+  const SPECIES = [
+    { name:'经典鱼 >°)))彡', w:4, dir:-1, size:[15,22], speed:[26,44], tails:TAIL,
+      colors:['#ffb26b','#ff8fa3','#7fe3ff','#ffe066','#a0f0c0','#ff9d7a'], art:'>°)))彡' },
+    { name:'极简鱼 ><>', w:4, dir:1, size:[11,15], speed:[42,66],
+      colors:['#9be7ff','#ffd6e0','#fff3a0','#b9f5c8'], art:'><>' },
+    { name:'小鱼 >゜)))彡', w:3, dir:-1, size:[14,20], speed:[32,52], tails:TAIL,
+      colors:['#8fe6ff','#ff9ec9','#ffe89a','#9ff0cf'], art:'>゜)))彡' },
+    { name:'圆鱼 ミ(°°)ミ', w:2, dir:1, size:[18,24], speed:[16,28],
+      colors:['#ffd28a','#ffa8c0','#b9f5d0','#9ec8ff'], art:'ミ(°°)ミ' },
+    { name:'可爱鱼 >(•ω•)<彡', w:4, dir:-1, size:[19,26], speed:[20,34], tails:TAIL,
+      colors:['#ff9eb5','#ffd480','#9ad9ff','#c3a6ff'], art:'>(•ω•)<彡' },
+    { name:'游泳鱼 ><(((º>', w:5, dir:1, size:[18,26], speed:[22,38],
+      colors:['#7fd8ff','#ffa6d5','#c4f09a','#ffe1a0'], art:'><(((º>' },
+    { name:'长尾鱼 ζ°)))彡', w:1, dir:-1, size:[20,30], speed:[18,30], tails:TAIL,
+      colors:['#b6a8ff','#7ff0d0','#ffb27f','#ff9fc0'], art:'ζ°)))彡' },
+    { name:'长鱼 >°))))彡', w:1, dir:-1, size:[29,42], speed:[12,22], deep:true, tails:TAIL,
+      colors:['#6fb6ff','#ff9d7a','#c58bff','#7fe0b0'], art:'>°))))彡' },
+    { name:'大鱼 ><((((*>', w:1, dir:1, size:[27,39], speed:[11,20], deep:true,
+      colors:['#8fd3ff','#ffc09a','#b0f5c8','#e2a6ff'], art:'><((((*>' },
+    { name:'鳍笑 ﾐ(ˊωˋ)ﾐ', w:2, dir:1, size:[16,22], speed:[24,38],
+      colors:['#9fe8ff','#ffb3c8','#d7ff9e'], art:'ﾐ(ˊωˋ)ﾐ' },
+    // 可爱表情鱼（按新要求加回 / 新增）
+    { name:'快乐泳者 ≧(´▽｀)≦彡', w:2, dir:-1, size:[20,27], speed:[16,27], tails:TAIL,
+      colors:['#ffe08a','#a0f0d8','#ffb7d0','#ffc0a0'], art:'≧(´▽｀)≦彡' },
+    { name:'害羞鳍 ﾐ(∩ω∩)ﾐ', w:2, dir:1, size:[16,22], speed:[24,38],
+      colors:['#ffb3d9','#9fe8ff','#ffe6a0'], art:'ﾐ(∩ω∩)ﾐ' },
+    { name:'惊讶脸 ≧〔°▲°〕≦彡', w:1, dir:-1, size:[21,28], speed:[15,26], tails:TAIL,
+      colors:['#ffc48a','#b9e3ff','#e2b0ff'], art:'≧〔°▲°〕≦彡' }
+  ];
+  // 𓆝 𓆟 𓆞 𓆉 需要埃及象形文字字体，默认关闭，?hiero=1 启用
+  if (CFG.hiero) SPECIES.push(
+    { name:'象形鱼 𓆝', w:2, dir:1, size:[16,22], speed:[20,34],
+      colors:['#8fe6d0','#ffd6a0','#b9c8ff'], art:'～°𓆝°～' }
+  );
+
+  /* ---------- 鱼缸装饰：全部字符画 ---------- */
+  const PLANT_SHAPES = [
+    ['   ||   ','  /  \\  ','   )(   ','   ((   ','   ))   ','   ((   ','   ))   ','   )(   '],
+    ['   |    ','  /|\\   ','   |    ','  (|)   ','   |    ','  /|\\   ','   Y    '],
+    ['   |    ','   }    ','   |    ','   {    ','   |    ','   }    ','   |    ','   {    '],
+    ['  /_\\   ','   |    ','  /|\\   ',' / | \\  ','  /|\\   ','   Y    ']
+  ];
+  const PLANT_COLORS = ['#3fbf8f','#57c785','#2f9f7a','#7fd8a0','#3aa6b8'];
+  const CORAL_COLORS = ['#ff8fa8','#ffa46b','#e58fc0'];
+  const DECOR_ART = [
+    { lines:['   /\\   ','  /  \\  ',' /_/\\_\\ ',' |    | ','[______]'], color:'#47737d', emitter:false },
+    { lines:[' ,----. ','/ .::. \\','|_____|'],                       color:'#9a7740', emitter:false },
+    { lines:['[:::::]'],                                              color:'#4a6b75', emitter:true  },
+    { lines:[' (_) ',' /_\\ '],                                       color:'#8a6b78', emitter:false },
+    { lines:[' ( o ) ','  ‾‾‾  '],                                    color:'#45646d', emitter:false },
+    { lines:['   o   ','  ( )  ',' .´`. '],                           color:'#5b7b82', emitter:false }
+  ];
+  const SAND_CHARS = ['·','.','¸',':','‥','｡','°','~','˙','·','.','·',',','¨','∴','∘','⋯'];
+  const BUBBLE_CHARS = ['˙','°','∘','o','○','O'];
+  const MOTE_CHARS = ['·','˙',',','·','.','∙'];
+
+  /* ---------- 状态 ---------- */
+  const canvas = document.getElementById('tank');
+  const ctx = canvas.getContext('2d');
+  const hud = document.getElementById('hud');
+  // W/H = 物理像素；S = 总缩放；VW/VH = 逻辑画布尺寸（所有布局都用它）
+  let W = 0, H = 0, DPR = 1, S = 1, VW = 0, VH = 0, SAND_H = 30, FLOOR = 0;
+  let staticLayer = null;
+  let fish = [], plants = [], bubbles = [], motes = [], ripples = [], emitters = [];
+  let paused = false, last = 0, now = 0, bubbleClock = 0;
+
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const pick = a => a[(Math.random() * a.length) | 0];
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  function font(px) { return px + 'px ' + CFG.font; }
+
+  /* 逐字符等距排版：半角占 1 格、全角占 2 格。
+     phase 不为 0 时，每个字符按自己的位置做正弦位移 —— 相邻括号的间距
+     就会周期性地挤压 / 舒展，鱼身因此「游动」，而字符数始终不变。 */
+  function isWide(cp) {
+    return (cp >= 0x1100 && cp <= 0x115F) || (cp >= 0x2E80 && cp <= 0xA4CF) ||
+           (cp >= 0xAC00 && cp <= 0xD7A3) || (cp >= 0xF900 && cp <= 0xFAFF) ||
+           (cp >= 0xFE10 && cp <= 0xFE6F) || (cp >= 0xFF00 && cp <= 0xFF60) ||
+           (cp >= 0xFFE0 && cp <= 0xFFE6) || (cp >= 0x10000 && cp <= 0x1FFFF) ||
+           (cp >= 0x20000 && cp <= 0x3FFFD);
+  }
+  function layout(str, size, phase) {
+    const chars = Array.from(str);
+    const cell = size * 0.53;
+    let units = 0;
+    for (const ch of chars) units += isWide(ch.codePointAt(0)) ? 2 : 1;
+    const total = units * cell, out = [];
+    let u = 0;
+    for (const ch of chars) {
+      const w = isWide(ch.codePointAt(0)) ? 2 : 1;
+      const wob = phase ? Math.sin(phase + u * 0.9) * size * 0.085 : 0;
+      out.push({ ch, x: -total / 2 + (u + w / 2) * cell + wob });
+      u += w;
+    }
+    return { out, total };
+  }
+  function drawGlyphs(g, str, cx, cy, size, phase) {
+    g.font = font(size);
+    const { out } = layout(str, size, phase);
+    for (const it of out) g.fillText(it.ch, cx + it.x, cy);
+  }
+  // 当前帧的鱼身：只换最后一个尾巴字符，躯干字符数恒定
+  function fishArt(f) {
+    const sp = f.sp;
+    if (!sp.tails) return sp.art;
+    const chars = Array.from(sp.art);
+    chars[chars.length - 1] = sp.tails[f.tailIdx % sp.tails.length];
+    return chars.join('');
+  }
+
+  /* ---------- 尺寸 / 整体缩放 ----------
+     以 1920×1080 为基准自动适配：不同分辨率下画面占比一致 = 一样观感。
+     zoom 是额外的手动整体放大（URL ?zoom= 或 [ / ] 键）。           */
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    W = window.innerWidth; H = window.innerHeight;
+    const auto = Math.min(W / 1920, H / 1080);
+    S = auto * CFG.zoom;
+    VW = W / S; VH = H / S;
+    SAND_H = clamp(Math.round(VH * 0.05), 40, 80);   // 泥沙层更厚
+    FLOOR = VH - CFG.taskbar / S;   // 内容底边上移，避开任务栏
+    canvas.width = Math.round(W * DPR);
+    canvas.height = Math.round(H * DPR);
+    canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+    ctx.setTransform(DPR * S, 0, 0, DPR * S, 0, 0);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    buildStatic();
+    seedPlants();
+    seedMotes();
+    if (!bubbles.length) seedBubbles();
+    if (!fish.length) seedFish();
+    else fish.forEach(f => {
+      f.baseY = clamp(f.baseY, 40, FLOOR - SAND_H - 16);
+      f.targetY = clamp(f.targetY, 40, FLOOR - SAND_H - 16);
+      f.x = clamp(f.x, 0, VW);
+    });
+  }
+
+  /* ---------- 静态层：沙地 + 摆件（离屏，避免每帧重画上百个字符） ---------- */
+  function buildStatic() {
+    staticLayer = document.createElement('canvas');
+    staticLayer.width = canvas.width; staticLayer.height = canvas.height;
+    const g = staticLayer.getContext('2d');
+    g.setTransform(DPR * S, 0, 0, DPR * S, 0, 0);
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+
+    // 泥沙：从装饰基线一直铺到水族箱物理底部，越往下越密实、越亮
+    const ch = 13;
+    g.font = font(ch);
+    const cw = Math.max(7, g.measureText('M').width);
+    const cols = Math.ceil(VW / cw) + 2;
+    const sandTop = FLOOR - SAND_H;
+    const sandBottom = VH;                    // 一直延伸到缸底（任务栏隐藏时也铺满）
+    const lineH = ch * 0.72;
+    const rows = Math.max(4, Math.ceil((sandBottom - sandTop) / lineH));
+    for (let row = 0; row < rows; row++) {
+      const y = sandTop + lineH * (row + 0.5);
+      if (y > sandBottom - 2) break;
+      const k = clamp((y - sandTop) / Math.max(1, sandBottom - sandTop), 0, 1);
+      g.globalAlpha = 0.22 + 0.50 * k;
+      g.fillStyle = k > 0.55 ? '#8ab8ad' : '#a9cdc2';
+      const gap = 0.20 - 0.18 * k;           // 上层稀疏、下层密实
+      for (let c = 0; c < cols; c++) {
+        if (Math.random() < gap) continue;
+        g.fillText(pick(SAND_CHARS), c * cw + cw / 2 + (row % 2 ? cw / 2 : 0), y);
+      }
+    }
+    // 缸底压实的一层，也是符号
+    g.globalAlpha = 0.52; g.fillStyle = '#bcdcd0'; g.font = font(11);
+    for (let c = 0; c < cols; c++) g.fillText('‾', c * cw + cw / 2, sandBottom - 4);
+
+    g.globalAlpha = 1;
+    emitters = [];
+    const count = clamp(CFG.decorCount, 0, 14);
+    const placed = [];
+    for (let i = 0; i < count; i++) {
+      const art = pick(DECOR_ART);
+      let x = 0, tries = 0;
+      do { x = rnd(70, VW - 70); tries++; }
+      while (tries < 30 && placed.some(px => Math.abs(px - x) < 110));
+      placed.push(x);
+      const lineH = 17;
+      art.lines.forEach((line, r) => {
+        g.globalAlpha = 0.42 + 0.10 * r;
+        g.fillStyle = art.color;
+        drawGlyphs(g, line, x, FLOOR - SAND_H - (art.lines.length - 1 - r) * lineH - 2, 16);
+      });
+      if (art.emitter) emitters.push({ x: x });
+    }
+    g.globalAlpha = 1;
+  }
+
+  /* ---------- 鱼群 ---------- */
+  function newFish(sp) {
+    const size = rnd(sp.size[0], sp.size[1]);
+    const depth = (size - sp.size[0]) / Math.max(1, sp.size[1] - sp.size[0]);
+    const f = {
+      sp, size,
+      color: pick(sp.colors),
+      x: rnd(-40, VW + 40),
+      baseY: rnd(FLOOR * 0.08, FLOOR - SAND_H - 16),
+      facing: Math.random() < 0.5 ? 1 : -1,
+      flip: 0, wag: rnd(0.75, 1.35),
+      vx: rnd(sp.speed[0], sp.speed[1]) * (1 - depth * 0.30),
+      alpha: (sp.deep ? 0.62 : 0.95) - depth * 0.18,
+      phase: rnd(0, Math.PI * 2), freq: rnd(0.45, 1.05), amp: rnd(3, 11),
+      turnIn: rnd(6, 18), retargetIn: rnd(4, 11),
+      panic: 0, tailIdx: 0, art: sp.art, wobble: 0,
+      bubbleIn: rnd(8, 24)          // 偶尔吐一两个泡泡
+    };
+    f.flip = f.facing;
+    f.targetY = f.baseY;
+    return f;
+  }
+  function seedFish() {
+    const bag = [];
+    SPECIES.forEach(sp => { for (let i = 0; i < sp.w; i++) bag.push(sp); });
+    fish = [];
+    for (let i = 0; i < CFG.fishCount; i++) fish.push(newFish(pick(bag)));
+    fish.sort((a, b) => b.size - a.size);
+  }
+
+  /* ---------- 水草 ---------- */
+  function seedPlants() {
+    plants = [];
+    // 数量、位置、高度、粗细每次都重新随机，且约 1/4 是明显更高的水草
+    const n = clamp(Math.round(CFG.decorCount * 2.2 + rnd(-1, 2)), 0, 26);
+    for (let i = 0; i < n; i++) {
+      const kind = Math.random() < 0.78 ? (Math.random() * 3) | 0 : 3;
+      const base = PLANT_SHAPES[kind];
+      const rows = Math.round(Math.random() < 0.25 ? rnd(20, 30) : rnd(8, 18));  // 水草高度翻倍
+      const off = (Math.random() * base.length) | 0;
+      const shape = [];
+      for (let r = 0; r < rows; r++) shape.push(base[(r + off) % base.length]);
+      plants.push({
+        x: rnd(20, VW - 20),
+        y: FLOOR - SAND_H + 6,
+        shape: shape,
+        color: kind === 3 ? pick(CORAL_COLORS) : pick(PLANT_COLORS),
+        size: rnd(10, 19), sway: rnd(5, 12),
+        phase: rnd(0, Math.PI * 2), alpha: rnd(0.35, 0.75)
+      });
+    }
+  }
+
+  /* ---------- 浮游微粒 ---------- */
+  function seedMotes() {
+    motes = [];
+    const n = clamp(Math.round(VW * VH / 26000), 30, 110);
+    for (let i = 0; i < n; i++) motes.push({
+      x: rnd(0, VW), y: rnd(0, FLOOR - SAND_H),
+      ch: pick(MOTE_CHARS), size: rnd(8, 15),
+      vy: rnd(3, 12), phase: rnd(0, 6.28), amp: rnd(2, 9),
+      alpha: rnd(0.08, 0.34)
+    });
+  }
+
+  /* ---------- 气泡 ---------- */
+  function spawnBubble(x, y, big, small) {
+    const size = small ? rnd(5, 9) : big ? rnd(16, 24) : rnd(10, 18);
+    bubbles.push({
+      x: x + rnd(-9, 9), y: y,
+      ch: BUBBLE_CHARS[clamp(Math.round(size / 4), 0, BUBBLE_CHARS.length - 1)],
+      size, vy: rnd(30, 66) * (big ? 0.85 : 1),
+      phase: rnd(0, 6.28), amp: rnd(3, 12),
+      alpha: rnd(0.45, 0.85)
+    });
+  }
+  function burst(x, y, n) {
+    for (let i = 0; i < n; i++) spawnBubble(x, y + rnd(-6, 6), Math.random() < 0.3);
+  }
+  // 开局把气泡撒在全屏随机位置，不是固定几根柱子
+  function seedBubbles() {
+    for (let i = 0; i < 9; i++)
+      spawnBubble(rnd(20, VW - 20), rnd(40, FLOOR - SAND_H - 10), Math.random() < 0.25);
+  }
+
+  /* ---------- 更新 ---------- */
+  function update(dt) {
+    const t = now / 1000;
+    for (const f of fish) {
+      f.flip += (f.facing - f.flip) * Math.min(1, dt * 5);
+      if (Math.abs(f.facing - f.flip) < 0.008) f.flip = f.facing;
+      const mul = (f.panic > 0 ? 1.9 : 1) * CFG.speed;
+      f.x += f.vx * f.flip * dt * mul;
+      f.tailIdx = Math.floor(now * 0.003 * f.wag);
+      f.art = fishArt(f);
+      f.wobble = now * 0.006 * f.wag + f.phase;   // 身体位移周期加倍，游得舒缓些
+      const half = layout(f.art, f.size).total / 2 + 8;
+      if (f.x > VW - half) f.facing = -1;
+      else if (f.x < half) f.facing = 1;
+      f.x = clamp(f.x, half * 0.4, VW - half * 0.4);
+
+      f.baseY += (f.targetY - f.baseY) * Math.min(1, dt * 0.45);
+      f.retargetIn -= dt;
+      if (f.retargetIn <= 0) {
+        f.targetY = rnd(FLOOR * 0.08, FLOOR - SAND_H - 16);
+        f.retargetIn = rnd(5, 12);
+      }
+      f.turnIn -= dt;
+      if (f.turnIn <= 0) {
+        if (Math.random() < 0.35) f.facing *= -1;
+        f.turnIn = rnd(7, 20);
+      }
+      f.y = f.baseY + Math.sin(t * f.freq + f.phase) * f.amp;
+      if (f.panic > 0) f.panic -= dt;
+
+      // 鱼偶尔从嘴边吐一个小泡泡
+      f.bubbleIn -= dt;
+      if (f.bubbleIn <= 0) {
+        if (CFG.bubbles) {                       // 偶尔从嘴边吐 1~2 个小泡
+          const dir = f.flip >= 0 ? 1 : -1;
+          const bx = f.x + dir * (half + 6), by = f.y - f.size * 0.15;
+          spawnBubble(bx, by, false, true);
+          if (Math.random() < 0.55) spawnBubble(bx + rnd(-6, 6), by - rnd(4, 10), false, true);
+        }
+        f.bubbleIn = rnd(8, 24);
+      }
+    }
+    // 气泡：每次都换地方冒，绝不固定在几个点
+    if (CFG.bubbles) {
+      bubbleClock -= dt;
+      if (bubbleClock <= 0) {
+        const fromStone = emitters.length && Math.random() < 0.28;
+        const bx = fromStone ? pick(emitters).x + rnd(-30, 30) : rnd(24, VW - 24);
+        const n = 1 + ((Math.random() * 3) | 0);
+        for (let i = 0; i < n; i++) spawnBubble(bx, FLOOR - SAND_H - 4, false);
+        bubbleClock = rnd(0.34, 1.20);   // 再放缓 ~30%，随机气泡更克制
+      }
+      for (let i = bubbles.length - 1; i >= 0; i--) {
+        const b = bubbles[i];
+        b.y -= b.vy * dt * CFG.speed;
+        if (b.y < -20) bubbles.splice(i, 1);
+      }
+    }
+    if (CFG.motes) for (const m of motes) {
+      m.y -= m.vy * dt * CFG.speed;
+      if (m.y < -10) { m.y = FLOOR - SAND_H; m.x = rnd(0, VW); }
+    }
+    for (let i = ripples.length - 1; i >= 0; i--) {
+      ripples[i].age += dt;
+      if (ripples[i].age > ripples[i].life) ripples.splice(i, 1);
+    }
+  }
+
+  /* ---------- 绘制（只写字符！） ---------- */
+  function draw() {
+    ctx.setTransform(DPR * S, 0, 0, DPR * S, 0, 0);
+    ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+    ctx.fillStyle = CFG.bg;
+    ctx.fillRect(0, 0, VW, VH);            // 唯一的「非字符」绘制：纯色背景
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+
+    if (CFG.surface) {
+      const off = (now * 0.012) % 24;
+      ctx.font = font(15); ctx.fillStyle = '#bfe9ff';
+      for (let row = 0; row < 2; row++) {
+        ctx.globalAlpha = 0.13 - row * 0.05;
+        const step = 24, start = -step + off * (row ? -0.6 : 1);
+        for (let x = start; x < VW + step; x += step) ctx.fillText(row ? '∿' : '~', x, 9 + row * 15);
+      }
+    }
+    if (CFG.motes) {
+      ctx.fillStyle = '#dff4ff';
+      for (const m of motes) {
+        ctx.globalAlpha = m.alpha;
+        ctx.font = font(m.size);
+        ctx.fillText(m.ch, m.x + Math.sin(now * 0.0007 + m.phase) * m.amp, m.y);
+      }
+    }
+    if (CFG.decor && staticLayer) {
+      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+      ctx.drawImage(staticLayer, 0, 0, VW, VH);
+    }
+    if (CFG.plants) {
+      for (const p of plants) {
+        const rows = p.shape.length, lineH = p.size * 1.12;
+        for (let r = 0; r < rows; r++) {
+          const k = (r + 1) / rows;
+          const swayX = Math.sin(now * 0.0011 + p.phase + r * 0.48) * p.sway * k;
+          ctx.globalAlpha = p.alpha * (0.42 + 0.58 * (1 - k * 0.5));
+          ctx.fillStyle = p.color;
+          drawGlyphs(ctx, p.shape[r], p.x + swayX, p.y - r * lineH, p.size);
+        }
+      }
+    }
+    if (CFG.bubbles) {
+      ctx.fillStyle = '#eafaff';
+      for (const b of bubbles) {
+        const x = b.x + Math.sin(now * 0.0022 + b.phase) * b.amp;
+        ctx.globalAlpha = b.alpha;
+        ctx.font = font(b.size);
+        ctx.fillText(b.ch, x, b.y);
+        if (b.size > 13) {
+          ctx.globalAlpha = b.alpha * 0.8; ctx.font = font(b.size * 0.45);
+          ctx.fillText('˙', x - b.size * 0.22, b.y - b.size * 0.22);
+        }
+      }
+    }
+    for (const f of fish) {
+      ctx.save();
+      ctx.translate(f.x, f.y);
+      ctx.scale(f.flip * f.sp.dir, 1);   // 游动方向 × 鱼种朝向 = 正确的头尾方向
+      ctx.globalAlpha = f.alpha;
+      ctx.fillStyle = f.color;
+      if (CFG.glow) { ctx.shadowColor = f.color; ctx.shadowBlur = Math.min(13, f.size * 0.5); }
+      drawGlyphs(ctx, f.art, 0, 0, f.size, f.wobble);
+      ctx.restore();
+    }
+    ctx.shadowBlur = 0;
+    for (const rp of ripples) {
+      const k = rp.age / rp.life;
+      ctx.globalAlpha = (1 - k) * 0.5;
+      ctx.font = font(10 + k * 46);
+      ctx.fillStyle = '#dff4ff';
+      ctx.fillText(k < 0.5 ? '○' : '∘', rp.x, rp.y);
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function loop(ts) {
+    if (!last) last = ts;
+    let dt = (ts - last) / 1000; last = ts;
+    dt = Math.min(dt, 0.05);
+    if (!paused) { now = ts; update(dt); }
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  /* ---------- 交互 ---------- */
+  function splash(x, y) {
+    ripples.push({ x, y, age: 0, life: 1.35 });
+    ripples.push({ x, y, age: -0.18, life: 1.35 });
+    if (CFG.bubbles) burst(x, y, 5);
+    for (const f of fish) {
+      if (Math.abs(f.x - x) < 210 && Math.abs(f.y - y) < 165) {
+        f.panic = 1.4;
+        // 纵向躲开幅度加大，并朝远离点击点的方向横向逃走
+        f.targetY = clamp(f.y + (f.y < y ? -1 : 1) * rnd(45, 115), 40, FLOOR - SAND_H - 16);
+        f.facing = f.x < x ? -1 : 1;
+      }
+    }
+  }
+  canvas.addEventListener('pointerdown', e => {
+    if (!CFG.wallpaper) splash(e.clientX / S, e.clientY / S);
+  });
+
+  const HELP =
+    '<b>ASCII 水族馆</b> · 纯符号桌面鱼缸 · 鱼形取自 kaomojis.jp\n' +
+    '点击水面 → 冒泡、惊散鱼群\n' +
+    '空格 暂停 · B 换背景 · + / - 增减鱼 · R 重新投鱼\n' +
+    '[ / ] 整体缩放 · P 水草 · O 气泡 · G 摆件 · H 隐藏 · F 全屏';
+  hud.innerHTML = HELP;
+  if (CFG.wallpaper) hud.classList.add('hidden');
+  else setTimeout(() => hud.classList.add('hidden'), 9000);
+
+  window.addEventListener('keydown', e => {
+    const k = e.key.toLowerCase();
+    if (k === ' ') { e.preventDefault(); paused = !paused; }
+    else if (k === 'h') hud.classList.toggle('hidden');
+    else if (k === 'f') {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else document.documentElement.requestFullscreen().catch(() => {});
+    }
+    else if (k === 'b') { themeIndex = (themeIndex + 1) % THEMES.length; CFG.bg = THEMES[themeIndex]; document.body.style.background = CFG.bg; }
+    else if (k === 'r') seedFish();
+    else if (k === 'p') CFG.plants = !CFG.plants;
+    else if (k === 'o') CFG.bubbles = !CFG.bubbles;
+    else if (k === 'g') CFG.decor = !CFG.decor;
+    else if (k === '[') { CFG.zoom = clamp(CFG.zoom - 0.1, 0.4, 3); resize(); }
+    else if (k === ']') { CFG.zoom = clamp(CFG.zoom + 0.1, 0.4, 3); resize(); }
+    else if (k === '+' || k === '=') { CFG.fishCount = Math.min(90, CFG.fishCount + 3); seedFish(); }
+    else if (k === '-' || k === '_') { CFG.fishCount = Math.max(1, CFG.fishCount - 3); seedFish(); }
+  });
+  window.addEventListener('resize', resize);
+
+  resize();
+  requestAnimationFrame(loop);
+  window.__aquarium = {
+    CFG, seedFish, splash, resize,
+    get state() {
+      return { fish: fish.length, bubbles: bubbles.length, plants: plants.length,
+               species: SPECIES.length, W, H, VW: Math.round(VW), VH: Math.round(VH),
+               zoom: CFG.zoom, scale: +S.toFixed(3), decor: CFG.decorCount,
+               floor: Math.round(FLOOR), taskbar: CFG.taskbar };
+    },
+    get speciesInfo() {   // 便于核对每个鱼种的朝向标记
+      return SPECIES.map(s => ({ name: s.name, dir: s.dir, art: s.art }));
+    }
+  };
+
+  /* ---- 桌面宿主的命令通道 ----------------------------------------
+     托盘改背景 / 缩放 / 重新投鱼时，C# 只写一个 aquarium-cmd.js，
+     页面每 600ms 加载一次并执行 —— 不用关掉再重开窗口，零闪烁。   */
+  let cmdSeq = -1;
+  window.__aqApply = function (o) {
+    if (!o || o.seq <= cmdSeq) return;   // 命令文件保留最近多条，旧的重放跳过
+    cmdSeq = o.seq;
+    const v = o.value;
+    switch (o.cmd) {
+      case 'bg':      CFG.bg = '#' + String(v).replace(/^#/, ''); document.body.style.background = CFG.bg; break;
+      case 'zoom':    CFG.zoom = clamp(parseFloat(v) || 1, 0.4, 3); resize(); break;
+      case 'respawn': seedFish(); buildStatic(); seedPlants(); break;  // 装饰也重新随机
+      case 'fish':    CFG.fishCount = clamp(parseInt(v, 10) || 22, 1, 90); seedFish(); break;
+      case 'decorcount': {
+        const dn = parseInt(v, 10);
+        CFG.decorCount = clamp(isFinite(dn) ? dn : 6, 0, 14);
+        buildStatic(); seedPlants(); break;
+      }
+      case 'toggle':
+        if (['plants','bubbles','decor','motes','surface','glow'].indexOf(v) >= 0) CFG[v] = !CFG[v];
+        break;
+      case 'fishmore': CFG.fishCount = Math.min(90, CFG.fishCount + 3); seedFish(); break;
+      case 'fishless': CFG.fishCount = Math.max(1, CFG.fishCount - 3); seedFish(); break;
+      case 'pause':   paused = !paused; break;
+      case 'speed':   CFG.speed = clamp(parseFloat(v) || 1, 0.2, 3); break;
+      case 'splash': {
+        const p = String(v).split(',');
+        const px = parseFloat(p[0]), py = parseFloat(p[1]);
+        if (isFinite(px) && isFinite(py)) splash(px / S, py / S);  // 屏幕物理坐标 → 逻辑坐标
+        break;
+      }
+    }
+    // 壁纸模式下把状态写进窗口标题，方便外部确认命令确实被执行（标题栏已隐藏，看不到）
+    if (CFG.wallpaper) document.title = 'ASCII Aquarium · fish=' + CFG.fishCount +
+      ' · decor=' + CFG.decorCount + ' · floor=' + Math.round(FLOOR) + ' · ' + o.cmd;
+  };
+  if (CFG.wallpaper) {
+    setInterval(function () {
+      const s = document.createElement('script');
+      s.src = 'aquarium-cmd.js?t=' + Date.now();
+      s.onload = s.onerror = function () { if (s.parentNode) s.parentNode.removeChild(s); };
+      document.head.appendChild(s);
+    }, 60);   // 60ms 轮询：鼠标松开后几乎立刻出泡泡
+  }
+})();
+</script>
+</body>
+</html>

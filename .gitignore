@@ -1,0 +1,19 @@
+# Edge 运行时配置目录（体积几百 MB，含缓存 / 组件 / 指标，全部可自动重建）
+.aquarium-profile/
+.aquarium-profile1/
+
+# 运行时生成的文件
+aquarium.log
+aquarium-cmd.js
+
+# 临时验证脚本 / 抓图
+capture.ps1
+check.js
+_c.js
+serve.js
+*.ps1
+
+# 编译中间产物与备份包
+deskfish.zip
+*.pdb
+*.zip
